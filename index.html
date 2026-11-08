@@ -42,6 +42,18 @@ input,select{font:inherit;color:inherit;background:var(--card);border:1px solid 
 .hid{display:none!important}#back{display:none}
 @media(max-width:760px){#side{width:100%}#main{display:none;width:100%}body.ed #side{display:none}body.ed #main{display:flex}#back{display:inline-block}#pg{padding:14px}}
 @media print{#side,#tb{display:none!important}body{display:block}#scr{overflow:visible}#wrap{box-shadow:none;border:0}}
+
+/* focus mode + sliding drawer */
+#edge,#scrim,#tab{display:none}
+body.fc #side{display:none}
+body.fc #edge{display:block;position:fixed;left:0;top:0;bottom:0;width:22px;z-index:40;touch-action:none}
+body.fc #tab{display:block;position:fixed;left:0;top:50%;width:14px;height:64px;margin-top:-32px;border-radius:0 10px 10px 0;background:var(--ac);opacity:.55;z-index:41;pointer-events:none}
+body.fc #scrim{position:fixed;inset:0;background:#0006;z-index:49;opacity:0;pointer-events:none;transition:opacity .25s;display:block}
+body.fc #scrim.open{opacity:1;pointer-events:auto}
+body.fc #tb{position:fixed;left:0;top:0;bottom:0;width:min(300px,86vw);z-index:50;flex-direction:column;align-items:stretch;flex-wrap:nowrap;overflow:auto;padding:calc(12px + env(safe-area-inset-top)) 12px 12px;transform:translateX(-105%);transition:transform .25s;box-shadow:4px 0 24px #0005;touch-action:pan-y}
+body.fc #tb.open{transform:none}
+body.fc #tb input,body.fc #tb select{width:100%;min-width:0}
+body.fc #scr{padding:6px}body.fc #wrap{max-width:1100px}
 </style></head><body>
 <aside id="side">
  <header><h1>📚 StudyNotes</h1><button id="nn" class="on">+ Note</button><button id="mn">⋯</button></header>
@@ -52,7 +64,7 @@ input,select{font:inherit;color:inherit;background:var(--card);border:1px solid 
  <div id="empty">Select or create a note<br><small>Works offline · stylus ready</small></div>
  <div id="tb" class="hid">
   <button id="back">←</button><input id="ti" placeholder="Title"><select id="sj"></select>
-  <div class="g"><button id="mode">✏️ Draw</button><button id="paper">▤ Paper</button><button id="pin">📌</button><button id="del">🗑</button></div>
+  <div class="g"><button id="fc" title="Focus mode: page only. Swipe from left edge for options">⛶ Focus</button><button id="mode">✏️ Draw</button><button id="paper">▤ Paper</button><button id="pin">📌</button><button id="del">🗑</button></div>
   <div class="g" id="txt">
    <button data-c="bold"><b>B</b></button><button data-c="italic"><i>I</i></button><button data-c="underline"><u>U</u></button>
    <button data-c="hiliteColor">🖍</button><button data-c="h2">H</button><button data-c="insertUnorderedList">• List</button><button data-c="insertOrderedList">1.</button><button data-c="chk">☑</button>
@@ -67,6 +79,7 @@ input,select{font:inherit;color:inherit;background:var(--card);border:1px solid 
  <div id="scr" class="hid"><div id="wrap"><div id="pg" contenteditable="true"></div><canvas id="cv"></canvas></div>
   <div style="text-align:center;margin:12px"><button id="addp">+ Add page length</button></div></div>
 </section>
+<div id="scrim"></div><div id="edge"></div><div id="tab"></div>
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const COLS=['#111111','#2563eb','#dc2626','#16a34a','#9333ea','#f59e0b'];
@@ -146,6 +159,24 @@ $('#mn').onclick=()=>{const c=prompt('Type: 1 = Dark/Light theme, 2 = Export bac
  else if(c==='2'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D)],{type:'application/json'}));a.download='studynotes-backup.json';a.click()}
  else if(c==='3'){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=async()=>{try{const d=JSON.parse(await i.files[0].text());if(!Array.isArray(d.notes))throw 0;D=d;sv();location.reload()}catch(e){alert('Invalid backup file')}};i.click()}
  else if(c==='4'){if(cur)print();else alert('Open a note first')}};
+
+// ---------- focus mode + swipe drawer
+const tb=$('#tb');
+function drawer(o){tb.classList.toggle('open',o);$('#scrim').classList.toggle('open',o)}
+function focus(v){document.body.classList.toggle('fc',v);drawer(false);$('#fc').textContent=v?'⛶ Exit focus':'⛶ Focus';setTimeout(fit,50)}
+$('#fc').onclick=()=>focus(!document.body.classList.contains('fc'));
+let sx=null;
+$('#edge').addEventListener('pointerdown',e=>{sx=e.clientX;$('#edge').setPointerCapture(e.pointerId)});
+$('#edge').addEventListener('pointermove',e=>{if(sx!==null&&e.clientX-sx>30){sx=null;drawer(true)}});
+$('#edge').addEventListener('pointerup',()=>{if(sx!==null){sx=null;drawer(true)}});
+$('#scrim').onclick=()=>drawer(false);
+let tx=null;
+tb.addEventListener('touchstart',e=>{tx=e.touches[0].clientX},{passive:true});
+tb.addEventListener('touchend',e=>{if(tx!==null&&tx-e.changedTouches[0].clientX>60&&document.body.classList.contains('fc'))drawer(false);tx=null});
+$('#back').addEventListener('click',()=>focus(false));
+$('#del').addEventListener('click',()=>{if(!cur)focus(false)});
+// sync: also open from keyboard
+addEventListener('keydown',e=>{if(e.key==='Escape')drawer(false)});
 (async()=>{const d=await load();if(d)D=d;theme();$('#wrap').classList.toggle('po',!!D.pen);$('#po').classList.toggle('on',!!D.pen);renderSubs();renderList();
  if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
  navigator.storage&&navigator.storage.persist&&navigator.storage.persist()})();
